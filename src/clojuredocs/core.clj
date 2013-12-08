@@ -46,7 +46,7 @@
 
 (defn parse-repo [#^File root sub-dir metadata]
   "Make a big-ass map out of an entire repo."
-  (let [git-map (parse-git (mkfile root ".git"))
+  (let [git-map (parse-git (path root ".git"))
         project metadata
         project (assoc project :source-root sub-dir)
         project (assoc project :cljs (cljs-in (:source-root project)))
@@ -87,28 +87,50 @@
             nss (get-nss library)
             vars (get-vars library)]
 
+        ;; Create the dist folder and the folder named after the library
+        ;; inside of it if they don't already exist
+        (.mkdir (path "dist"))
+        (.mkdir (path "dist" (:name library)))
+
+        ;; Iterate over the projects in the lib
         (doseq [p (sort-by :name projects)]
+
+          ;; ...and iterate over each namespace
           (doseq [ns (sort-by :name (:namespaces p))]
+            ;; create a folder for the namespace
+            (.mkdir (path "dist" (:name library) (:name ns)))
+
+            ;; Iterate over the vars
             (doseq [v (sort-by :name (:vars ns))]
-              (let [folder-name (str "dist/" (:name library) "/" (:ns v) "/" (:name v))]
-                (.mkdir (java.io.File. "dist"))
-                (.mkdir (java.io.File. (str "dist/" (:name library))))
-                (.mkdir (java.io.File. (str "dist/" (:name library) "/" (:ns v))))
-                (.mkdir (java.io.File. folder-name))
+              (let [;; Store a stringified version of the var's foler name
+                    folder-name (str "dist/" (:name library) "/" (:ns v) "/" (:name v))]
+
+                ;; Create the folder for the var,
+                ;; where the name of the folder is the var name
+                (.mkdir (path "dist" (:name library) (:ns v) (:name v)))
 
                 ;; Check to see if the examples.html exists for this var, and if not, create it.
-                (if (#(.exists (clojure.java.io/as-file %)) (str folder-name "examples.html"))
+                (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/examples.html"))
                   (writefile (str folder-name "/examples.html") (render-resource "templates/examples.html.mustache" v)))
 
                 ;; Do the same for see-also.html
-                (if (#(.exists (clojure.java.io/as-file %)) (str folder-name "see-also.html"))
+                (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/see-also.html"))
                   (writefile (str folder-name "/see-also.html") (render-resource "templates/see-also.html.mustache" v)))
 
-                (writefile (str folder-name "/index.html") (render-resource "templates/var.html.mustache" v))))))
+                ;; Load the contents of the examples and see-also files
+                (let [examples (slurp (str folder-name "/examples.html"))
+                      see-also (slurp (str folder-name "/see-also.html"))]
+
+                  ;; Create the var's html
+                  (writefile (str folder-name "/index.html")
+                             (render-resource "templates/var.html.mustache" (assoc v :examples examples
+                                                                                     :see-also see-also)))))))))
       (catch Exception e
         (pprint "Import process failed: " e)))
     (pprint (str "Took " (/ (- (System/currentTimeMillis) start) 1000.0) "s"))))
 
+
+;;(slurp (str "dist/Clojure Core/clojure.edn/read/examples.html"))
 
 (defn run-update-clojure-core [root-dir sub-dir]
   (report-on-lib (parse-repo (File. root-dir) (File. (str root-dir sub-dir)) core-meta)))
