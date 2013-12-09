@@ -81,7 +81,7 @@
 (defn report-on-lib [library]
   "For each namespace, and each var in each namespace, dump the map into a
   mustache template and write the corresponding files (and folders if necessary)."
-  (let [start (System/currentTimeMillis)]
+  (time
     (try
       (let [projects (get-projects library)
             nss (get-nss library)
@@ -126,8 +126,7 @@
                              (render-resource "templates/var.html.mustache" (assoc v :examples examples
                                                                                      :see-also see-also)))))))))
       (catch Exception e
-        (pprint "Import process failed: " e)))
-    (pprint (str "Took " (/ (- (System/currentTimeMillis) start) 1000.0) "s"))))
+        (pprint "Import process failed: " e)))))
 
 
 ;;(slurp (str "dist/Clojure Core/clojure.edn/read/examples.html"))
