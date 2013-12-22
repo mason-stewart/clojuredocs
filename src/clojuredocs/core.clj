@@ -6,9 +6,9 @@
         [clojuredocs.utils]
         [clojure.pprint :only (pprint)]
         [clostache.parser])
-  (:require [clojure.data.json :as json])
   (:import [java.io File FileReader]
            [clojure.lang LineNumberingPushbackReader]))
+
 
 
 (defn to-var-map [v]
@@ -43,6 +43,7 @@
    :commit (git-dir-to-commit git-root)
    :site-url (git-dir-to-site-url git-root)})
 
+(git-dir-to-commit (path (File. "/Users/masondesu/clojure/")))
 
 (defn parse-repo [#^File root sub-dir metadata]
   "Make a big-ass map out of an entire repo."
@@ -82,63 +83,56 @@
   "For each namespace, and each var in each namespace, dump the map into a
   mustache template and write the corresponding files (and folders if necessary)."
   (time
-    (try
-      (let [projects (get-projects library)
-            nss (get-nss library)
-            vars (get-vars library)]
+   (try
+     (let [projects (get-projects library)
+           nss (get-nss library)
+           vars (get-vars library)]
 
-        ;; Create the dist folder and the folder named after the library
-        ;; inside of it if they don't already exist
-        (.mkdir (path "dist"))
-        (.mkdir (path "dist" (:name library)))
-
-        ;; Iterate over the projects in the lib
-        (doseq [p (sort-by :name projects)]
-
-          ;; ...and iterate over each namespace
-          (doseq [ns (sort-by :name (:namespaces p))]
-            ;; create a folder for the namespace
-            (.mkdir (path "dist" (:name library) (:name ns)))
-
-            ;; Iterate over the vars
-            (doseq [v (sort-by :name (:vars ns))]
-              (let [;; Store a stringified version of the var's foler name
-                    folder-name (str "dist/" (:name library) "/" (:ns v) "/" (:name v))]
-
-                ;; Create the folder for the var,
-                ;; where the name of the folder is the var name
-                (.mkdir (path "dist" (:name library) (:ns v) (:name v)))
-
-                ;; Check to see if the examples.html exists for this var, and if not, create it.
-                (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/examples.html"))
-                  (writefile (str folder-name "/examples.html") (render-resource "templates/examples.html.mustache" v)))
-
-                ;; Do the same for see-also.html
-                (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/see-also.html"))
-                  (writefile (str folder-name "/see-also.html") (render-resource "templates/see-also.html.mustache" v)))
-
-                ;; Load the contents of the examples and see-also files
-                (let [examples (slurp (str folder-name "/examples.html"))
-                      see-also (slurp (str folder-name "/see-also.html"))]
-
-                  ;; Create the var's html
-                  (writefile (str folder-name "/index.html")
-                             (render-resource "templates/var.html.mustache" (assoc v :examples examples
-                                                                                     :see-also see-also)))))))))
-      (catch Exception e
-        (pprint "Import process failed: " e)))))
+       ;; Create the dist folder and the folder named after the library
+       ;; inside of it if they don't already exist
+       (.mkdir (path "dist"))
+       (.mkdir (path "dist" (:name library)))
 
 
-;;(slurp (str "dist/Clojure Core/clojure.edn/read/examples.html"))
+       (time (doseq [ns nss]
+               ;; create a folder for each namespace
+               #_(pprint (:name ns))
+               (.mkdir (path "dist" (:name library) (:name ns)))))
+
+       ;; Iterate over the vars
+       (time
+        (doall
+         (pmap (fn [v]
+                 (let [;; Store a stringified version of the var's foler name
+                       folder-name (str "dist/" (:name library) "/" (:ns v) "/" (:name v))]
+
+                   ;; Create the folder for the var,
+                   ;; where the name of the folder is the var name
+                   (.mkdir (path "dist" (:name library) (:ns v) (:name v)))
+
+                   ;; Check to see if the examples.html exists for this var, and if not, create it.
+                   (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/examples.html"))
+                     (writefile (str folder-name "/examples.html") (render-resource "templates/examples.html.mustache" v)))
+
+                   ;; Do the same for see-also.html
+                   (if-not (#(.exists (clojure.java.io/as-file %)) (str folder-name "/see-also.html"))
+                     (writefile (str folder-name "/see-also.html") (render-resource "templates/see-also.html.mustache" v)))
+
+                   ;; Load the contents of the examples and see-also files
+                   (let [examples (slurp (str folder-name "/examples.html"))
+                         see-also (slurp (str folder-name "/see-also.html"))]
+
+                     ;; Create the var's html
+                     (writefile (str folder-name "/index.html")
+                                (render-resource "templates/var.html.mustache" (assoc v :examples examples
+                                                                                 :see-also see-also))))))
+               vars))))
+     (catch Exception e
+       (pprint "Import process failed: " e)))))
+
 
 (defn run-update-clojure-core [root-dir sub-dir]
   (report-on-lib (parse-repo (File. root-dir) (File. (str root-dir sub-dir)) core-meta)))
 
 (defn run-update-clojure-contrib [root-dir sub-dir]
   (report-on-lib (parse-repo (File. root-dir) (File. (str root-dir sub-dir)) contrib-meta)))
-
-
-(File. (str "/Users/masondesu/clojure/" "src/clj"))
-
-(run-update-clojure-core "/Users/masondesu/clojure/" "src/clj")
-#_(run-update-clojure-contrib "/Users/masondesu/clojurelibs/clojure-contrib")

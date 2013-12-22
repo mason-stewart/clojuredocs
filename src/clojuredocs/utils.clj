@@ -53,6 +53,8 @@
   (.getParentFile file))
 
 (defn git-dir-to-site-url [#^File git-dir]
+  "Looks in the .git folder provided as the argument and parses the github url.
+  Pretty sure this can be cleaned up, this seems like a less than elegant solution"
   (when-let [config (try (split-lines (slurp (path git-dir "config"))) (catch Exception e nil))]
     (when-let [remote-origin (drop 1 (drop-while #(not (.contains % "[remote \"origin\"]")) config))]
       (let [url (->> (re-find #"http://.*\.git" (second remote-origin))
@@ -64,6 +66,8 @@
           url)))))
 
 (defn git-dir-to-web-src-dir [#^File git-dir]
+  "Return the blob url for a repo on GitHub when given a .git directory
+  i.e https://github.com/masondesu/clojuredocs/blob/"
   (when-let [url (git-dir-to-site-url git-dir)]
     (str url "/blob")))
 
